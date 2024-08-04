@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Text, View, StyleSheet, FlatList } from 'react-native';
-import { BarCodeScanner } from 'expo-barcode-scanner';
-import { products } from './src/hooks/datas';
-import { Audio } from 'expo-av';
+import React, { useState, useEffect } from "react";
+import { Text, View, StyleSheet, FlatList } from "react-native";
+import { BarCodeScanner } from "expo-barcode-scanner";
+import { products } from "./src/hooks/datas";
+import { Audio } from "expo-av";
 
-export default function App() {
+export default function BarCodeScanner() {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
   const [scannedData, setScannedData] = useState([]);
@@ -13,34 +13,36 @@ export default function App() {
   useEffect(() => {
     (async () => {
       const { status } = await BarCodeScanner.requestPermissionsAsync();
-      setHasPermission(status === 'granted');
+      setHasPermission(status === "granted");
     })();
   }, []);
 
   const playSound = async () => {
     const { sound } = await Audio.Sound.createAsync(
-      require('./src/components/audio/chin-up-554.mp3')
+      require("./src/components/audio/chin-up-554.mp3")
     );
     setSound(sound);
     await sound.playAsync();
-  }
+  };
 
   useEffect(() => {
     return sound
       ? () => {
-        sound.unloadAsync();
-      }
+          sound.unloadAsync();
+        }
       : undefined;
   }, [sound]);
 
   const handleBarCodeScanned = ({ type, data }) => {
     setScanned(true);
-    const product = products.find(product => product.code === data);
+    const product = products.find((product) => product.code === data);
     if (product) {
-      setScannedData(prevScannedData => {
-        const existingProduct = prevScannedData.find(item => item.code === data);
+      setScannedData((prevScannedData) => {
+        const existingProduct = prevScannedData.find(
+          (item) => item.code === data
+        );
         if (existingProduct) {
-          return prevScannedData.map(item =>
+          return prevScannedData.map((item) =>
             item.code === data ? { ...item, quantity: item.quantity + 1 } : item
           );
         } else {
@@ -48,13 +50,13 @@ export default function App() {
         }
       });
     } else {
-      setScannedData(prevScannedData => [
+      setScannedData((prevScannedData) => [
         ...prevScannedData,
-        { name: 'Unknown Product', code: data, quantity: 1 },
+        { name: "Unknown Product", code: data, quantity: 1 },
       ]);
     }
 
-    playSound()
+    playSound();
     setTimeout(() => {
       setScanned(false);
     }, 2000); // Sesin süresi kadar bekle
@@ -95,14 +97,14 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'center',
+    flexDirection: "column",
+    justifyContent: "center",
     paddingTop: 50,
   },
   item: {
     fontSize: 16,
     margin: 10,
-    backgroundColor: '#f9c2ff',
+    backgroundColor: "#f9c2ff",
     padding: 10,
   },
 });
