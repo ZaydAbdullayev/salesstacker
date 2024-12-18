@@ -1,25 +1,44 @@
 import React, { useState, useEffect } from "react";
-import { Text, View, StyleSheet, FlatList } from "react-native";
-import { BarCodeScanner } from "expo-barcode-scanner";
-import { products } from "./src/hooks/datas";
+import {
+  Text,
+  View,
+  StyleSheet,
+  FlatList,
+  Dimensions,
+  TouchableOpacity,
+} from "react-native";
+// import { BarCodeScanner } from "expo-barcode-scanner";
+import { products } from "../../hooks/datas";
 import { Audio } from "expo-av";
+import Icon from "@expo/vector-icons/Entypo";
+import { BlurView } from "expo-blur";
+import { CameraView, Camera } from "expo-camera";
+import { acFinish, acHeader } from "../../context/dinamik-header";
+import { useDispatch } from "react-redux";
+import { ModalComponent } from "../../components/modal/modal";
 
-export default function BarCodeScanner() {
+const width = Dimensions.get("window").width;
+export default function BarCodeScannerComponent() {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
   const [scannedData, setScannedData] = useState([]);
   const [sound, setSound] = useState();
+  const [activeProduct, setActiveProduct] = useState(null);
+  const [open, setOpen] = useState(false);
+  const dispatch = useDispatch();
 
   useEffect(() => {
-    (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
+    const getCameraPermissions = async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === "granted");
-    })();
+    };
+
+    getCameraPermissions();
   }, []);
 
   const playSound = async () => {
     const { sound } = await Audio.Sound.createAsync(
-      require("./src/components/audio/chin-up-554.mp3")
+      require("../../components/audio/chin-up-554.mp3")
     );
     setSound(sound);
     await sound.playAsync();
@@ -35,31 +54,75 @@ export default function BarCodeScanner() {
 
   const handleBarCodeScanned = ({ type, data }) => {
     setScanned(true);
-    const product = products.find((product) => product.code === data);
-    if (product) {
-      setScannedData((prevScannedData) => {
-        const existingProduct = prevScannedData.find(
-          (item) => item.code === data
+    const product = products.find((product) => product.code === data) || {
+      name: "Unknown Product",
+      code: data,
+      quantity: 1,
+      description: "something",
+    };
+    const updatedProduct = {
+      ...product,
+      quantity: (product.quantity || 0) + 1,
+    };
+    setScannedData((prevScannedData) => {
+      const existingIndex = prevScannedData.findIndex(
+        (item) => item.code === data
+      );
+      if (existingIndex !== -1) {
+        const updatedScannedData = prevScannedData.map((item, index) =>
+          index === existingIndex
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         );
-        if (existingProduct) {
-          return prevScannedData.map((item) =>
-            item.code === data ? { ...item, quantity: item.quantity + 1 } : item
-          );
-        } else {
-          return [...prevScannedData, { ...product, quantity: 1 }];
-        }
-      });
-    } else {
-      setScannedData((prevScannedData) => [
-        ...prevScannedData,
-        { name: "Unknown Product", code: data, quantity: 1 },
-      ]);
+        setActiveProduct(existingIndex);
+        return updatedScannedData;
+      } else {
+        setActiveProduct(prevScannedData.length);
+        return [...prevScannedData, updatedProduct];
+      }
+    });
+    if (product.price) {
+      dispatch(acHeader(product.price));
     }
-
     playSound();
     setTimeout(() => {
       setScanned(false);
-    }, 2000); // Sesin süresi kadar bekle
+    }, 2000);
+  };
+
+  const changeQuantity = (product, amount) => {
+    if (!product) return;
+    const priceChange = amount * product.price;
+    dispatch(acHeader(priceChange));
+    setScannedData((prevScannedData) => {
+      const existingIndex = prevScannedData.findIndex(
+        (item) => item.code === product.code
+      );
+      if (existingIndex === -1) return prevScannedData;
+      const updatedQuantity = prevScannedData[existingIndex].quantity + amount;
+      if (updatedQuantity <= 0) {
+        if (existingIndex === activeProduct) {
+          setActiveProduct(null);
+        }
+        return prevScannedData.filter((_, index) => index !== existingIndex);
+      } else {
+        const updatedScannedData = prevScannedData.map((item, index) =>
+          index === existingIndex
+            ? { ...item, quantity: updatedQuantity }
+            : item
+        );
+        if (existingIndex === activeProduct) {
+          setActiveProduct(existingIndex);
+        }
+        return updatedScannedData;
+      }
+    });
+  };
+
+  const finishScanning = async () => {
+    setScannedData([]);
+    dispatch(acFinish());
+    setActiveProduct(null);
   };
 
   if (hasPermission === null) {
@@ -71,40 +134,175 @@ export default function BarCodeScanner() {
 
   return (
     <View style={styles.container}>
-      <BarCodeScanner
-        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+      <CameraView
+        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        // barcodeScannerSettings={{
+        // barcodeTypes: [
+        // BarCodeScanner.Constants.BarCodeType.qr,
+        // BarCodeScanner.Constants.BarCodeType.pdf417,
+        // ],
+        // }}
         style={StyleSheet.absoluteFillObject}
       />
-
-      <FlatList
-        data={scannedData}
-        renderItem={({ item }) => (
-          <View style={styles.item}>
-            <Text>Name: {item.name}</Text>
-            <Text>Code: {item.code}</Text>
-            <Text>Amount: {item.amount}</Text>
-            <Text>Unit: {item.unit}</Text>
-            <Text>Group: {item.group}</Text>
-            <Text>Quantity: {item.quantity}</Text>
+      <BlurView style={{ ...styles.box, position: "relative" }}>
+        <View style={styles.activeProduct}>
+          <View style={styles.flex1}>
+            <Text style={{ fontSize: 18 }}>
+              {scannedData?.[activeProduct]?.name}
+            </Text>
+            <Text style={{ color: "#999" }}>
+              {scannedData?.[activeProduct]?.description}
+            </Text>
+            <Text style={{ fontSize: 18 }}>
+              {activeProduct !== null && (
+                <Icon name="cross" size={14} color={"#333"} />
+              )}{" "}
+              {scannedData?.[activeProduct]?.quantity}
+            </Text>
           </View>
-        )}
-        keyExtractor={(item, index) => index.toString()}
-      />
+          <View style={styles.btnBox}>
+            <TouchableOpacity
+              onPress={() => changeQuantity(scannedData?.[activeProduct], -1)}
+            >
+              <View style={styles.btn}>
+                <Icon
+                  style={styles.icon}
+                  name="minus"
+                  size={28}
+                  color={"red"}
+                />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => changeQuantity(scannedData?.[activeProduct], 1)}
+            >
+              <View style={styles.btn}>
+                <Icon
+                  style={styles.icon}
+                  name="plus"
+                  size={28}
+                  color={"limegreen"}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <FlatList
+          data={scannedData}
+          renderItem={({ item, index }) => (
+            <TouchableOpacity onPress={() => setActiveProduct(index)}>
+              <View
+                style={
+                  activeProduct === index
+                    ? { ...styles.item, backgroundColor: "lime" }
+                    : styles.item
+                }
+              >
+                <View>
+                  <Text>{item.name}</Text>
+                </View>
+                <View style={styles.text}>
+                  <Text>{item.quantity}</Text>
+                  <Icon name="cross" size={14} color={"#333"} />
+                  <Text>{item.price}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item, index) => index.toString()}
+        />
+
+        <View style={styles.controlBox}>
+          <TouchableOpacity>
+            <View style={styles.controlItem}>
+              <Text>Qarzdorlik</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setOpen(true)}>
+            <View style={styles.controlItem}>
+              <Text>Qo'lda kiritish</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={finishScanning}>
+            <View style={styles.controlItem}>
+              <Text>Yakunlash</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </BlurView>
+      <ModalComponent open={open} setOpen={setOpen} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    position: "relative",
     flex: 1,
-    flexDirection: "column",
     justifyContent: "center",
-    paddingTop: 50,
+    paddingTop: 300,
+  },
+  box: {
+    flex: 1,
+    padding: 10,
+  },
+  flex1: {
+    flex: 1,
   },
   item: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     fontSize: 16,
-    margin: 10,
-    backgroundColor: "#f9c2ff",
+    marginVertical: 5,
+    backgroundColor: "#fff",
     padding: 10,
+    borderRadius: 10,
+  },
+  text: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  activeProduct: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 10,
+    marginBottom: 5,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+  },
+  btnBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  btn: {
+    width: 60,
+    height: 60,
+    backgroundColor: "#f1f1f1",
+    borderRadius: 10,
+  },
+  icon: {
+    margin: "auto",
+  },
+  controlBox: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    height: 100,
+    width: width,
+    padding: 5,
+    gap: 5,
+    flexDirection: "row",
+    backgroundColor: "#fff",
+  },
+  controlItem: {
+    width: Math.floor(width / 3 - 13 / 3),
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f1f1f1",
+    borderRadius: 5,
   },
 });
