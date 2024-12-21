@@ -9,6 +9,7 @@ import {
 } from "react-native";
 // import { BarCodeScanner } from "expo-barcode-scanner";
 import { products } from "../../hooks/datas";
+// import QRCodeScanner from 'react-native-qrcode-scanner';
 import { Audio } from "expo-av";
 import Icon from "@expo/vector-icons/Entypo";
 import { BlurView } from "expo-blur";
