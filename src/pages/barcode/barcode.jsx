@@ -7,9 +7,7 @@ import {
   Dimensions,
   TouchableOpacity,
 } from "react-native";
-// import { BarCodeScanner } from "expo-barcode-scanner";
 import { products } from "../../hooks/datas";
-// import QRCodeScanner from 'react-native-qrcode-scanner';
 import { Audio } from "expo-av";
 import Icon from "@expo/vector-icons/Entypo";
 import { BlurView } from "expo-blur";
@@ -137,12 +135,22 @@ export default function BarCodeScannerComponent() {
     <View style={styles.container}>
       <CameraView
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-        // barcodeScannerSettings={{
-        // barcodeTypes: [
-        // BarCodeScanner.Constants.BarCodeType.qr,
-        // BarCodeScanner.Constants.BarCodeType.pdf417,
-        // ],
-        // }}
+        barcodeScannerSettings={{
+          barcodeTypes: [
+            "qr",
+            "pdf417",
+            "aztec",
+            "ean13",
+            "ean8",
+            "upc_a",
+            "upc_e",
+            "code39",
+            "code93",
+            "code128",
+            "itf",
+            "codabar",
+          ],
+        }}
         style={StyleSheet.absoluteFillObject}
       />
       <BlurView style={{ ...styles.box, position: "relative" }}>
