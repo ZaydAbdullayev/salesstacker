@@ -32,6 +32,9 @@
           "recordAudioAndroid": true
         }
       ]
-    ]
+    ],
+    "newArchEnabled": true,
+    "sdkVersion": "52.0.0",
+    "platforms": ["ios", "android", "web"]
   }
 }

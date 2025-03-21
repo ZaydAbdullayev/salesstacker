@@ -7,7 +7,8 @@ import Icon from "react-native-vector-icons/FontAwesome5";
 import IconMu from "react-native-vector-icons/MaterialCommunityIcons";
 import IconIo from "react-native-vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
-import { useSelector } from "react-redux";
+import useHeaderStore from "./context/header";
+import useModalStore from "./context/modale.store";
 
 function HomeScreen() {
   return (
@@ -27,7 +28,8 @@ function SettingsScreen() {
 
 const Tab = createBottomTabNavigator();
 export function BottomNavigationBarExample() {
-  const header = useSelector((state) => state.header);
+  const { total_price } = useHeaderStore();
+  const { openModal } = useModalStore();
 
   const navigate = useNavigation();
   const getTabBarIcon = (route, focused, color, size) => {
@@ -67,7 +69,7 @@ export function BottomNavigationBarExample() {
   const getHeaderTitle = (tittle) => {
     switch (tittle) {
       case "QR code":
-        return header.toString();
+        return total_price.toString();
       default:
         return tittle;
     }
@@ -94,7 +96,7 @@ export function BottomNavigationBarExample() {
     switch (tittle) {
       case "QR code":
         return (
-          <TouchableOpacity onPress={() => navigate.navigate("Store")}>
+          <TouchableOpacity onPress={() => openModal("debt")}>
             <IconMu name="account-cash" size={26} style={styles.debit} />
           </TouchableOpacity>
         );

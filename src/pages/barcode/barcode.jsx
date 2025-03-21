@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Text,
   View,
   StyleSheet,
   FlatList,
-  Dimensions,
   TouchableOpacity,
 } from "react-native";
 import { products } from "../../hooks/datas";
@@ -12,19 +11,23 @@ import { Audio } from "expo-av";
 import Icon from "@expo/vector-icons/Entypo";
 import { BlurView } from "expo-blur";
 import { CameraView, Camera } from "expo-camera";
-import { acFinish, acHeader } from "../../context/dinamik-header";
-import { useDispatch } from "react-redux";
-import { ModalComponent } from "../../components/modal/modal";
+import { ModalComponent } from "../../components/modal/product-list.modal";
+import { styles } from "./barcode.styles";
+import { useNavigation } from "@react-navigation/native";
+import useHeaderStore from "../../context/header";
+import useModalStore from "../../context/modale.store";
+import { DebtModalComponent } from "../../components/modal/debt.modal";
 
-const width = Dimensions.get("window").width;
 export default function BarCodeScannerComponent() {
   const [hasPermission, setHasPermission] = useState(null);
-  const [scanned, setScanned] = useState(false);
   const [scannedData, setScannedData] = useState([]);
   const [sound, setSound] = useState();
   const [activeProduct, setActiveProduct] = useState(null);
-  const [open, setOpen] = useState(false);
-  const dispatch = useDispatch();
+  const [cameraKey, setCameraKey] = useState(0);
+  const navigation = useNavigation();
+  const scannedLock = useRef(false);
+  const { addPrice, finish } = useHeaderStore();
+  const { openModal } = useModalStore();
 
   useEffect(() => {
     const getCameraPermissions = async () => {
@@ -51,48 +54,66 @@ export default function BarCodeScannerComponent() {
       : undefined;
   }, [sound]);
 
-  const handleBarCodeScanned = ({ type, data }) => {
-    setScanned(true);
-    const product = products.find((product) => product.code === data) || {
-      name: "Unknown Product",
-      code: data,
-      quantity: 1,
-      description: "something",
-    };
-    const updatedProduct = {
-      ...product,
-      quantity: (product.quantity || 0) + 1,
-    };
-    setScannedData((prevScannedData) => {
-      const existingIndex = prevScannedData.findIndex(
-        (item) => item.code === data
-      );
-      if (existingIndex !== -1) {
-        const updatedScannedData = prevScannedData.map((item, index) =>
-          index === existingIndex
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-        setActiveProduct(existingIndex);
-        return updatedScannedData;
-      } else {
-        setActiveProduct(prevScannedData.length);
-        return [...prevScannedData, updatedProduct];
-      }
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      setCameraKey((prevKey) => prevKey + 1); // Kamerayı yeniden başlat
     });
-    if (product.price) {
-      dispatch(acHeader(product.price));
+    setScannedData([]);
+    finish();
+    setActiveProduct(null);
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const handleBarCodeScanned = ({ data, bounds }) => {
+    if (scannedLock.current) return; // Eğer tarama kilidi aktifse işlem yapma
+    scannedLock.current = true; // Tarama başladığında kilitle
+
+    if (bounds && bounds.origin) {
+      const { x, y } = bounds.origin;
+      if (x > 0 && x < 500 && y > 0 && y < 360) {
+        const product = products.find((product) => product.code === data) || {
+          name: "Unknown Product",
+          code: data,
+          quantity: 1,
+          description: "something",
+        };
+        const updatedProduct = {
+          ...product,
+          quantity: (product.quantity || 0) + 1,
+        };
+        setScannedData((prevScannedData) => {
+          const existingIndex = prevScannedData.findIndex(
+            (item) => item.code === data
+          );
+          if (existingIndex !== -1) {
+            const updatedScannedData = prevScannedData.map((item, index) =>
+              index === existingIndex
+                ? { ...item, quantity: item.quantity + 1 }
+                : item
+            );
+            setActiveProduct(existingIndex);
+            return updatedScannedData;
+          } else {
+            setActiveProduct(prevScannedData.length);
+            return [...prevScannedData, updatedProduct];
+          }
+        });
+        if (product.price) {
+          addPrice(product.price);
+        }
+        playSound();
+        setTimeout(() => {
+          scannedLock.current = false;
+        }, 2000);
+      }
     }
-    playSound();
-    setTimeout(() => {
-      setScanned(false);
-    }, 2000);
   };
 
   const changeQuantity = (product, amount) => {
     if (!product) return;
     const priceChange = amount * product.price;
-    dispatch(acHeader(priceChange));
+    addPrice(priceChange);
     setScannedData((prevScannedData) => {
       const existingIndex = prevScannedData.findIndex(
         (item) => item.code === product.code
@@ -120,8 +141,16 @@ export default function BarCodeScannerComponent() {
 
   const finishScanning = async () => {
     setScannedData([]);
-    dispatch(acFinish());
+    finish();
     setActiveProduct(null);
+    openModal("snackbar", { message: "Harid yakunlandi!" });
+  };
+
+  const cancelSaling = async () => {
+    setScannedData([]);
+    finish();
+    setActiveProduct(null);
+    openModal("snackbar", { message: "Harid bekor qilindi!" });
   };
 
   if (hasPermission === null) {
@@ -134,7 +163,8 @@ export default function BarCodeScannerComponent() {
   return (
     <View style={styles.container}>
       <CameraView
-        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        key={cameraKey}
+        onBarcodeScanned={handleBarCodeScanned}
         barcodeScannerSettings={{
           barcodeTypes: [
             "qr",
@@ -151,6 +181,7 @@ export default function BarCodeScannerComponent() {
             "codabar",
           ],
         }}
+        focusable={true}
         style={StyleSheet.absoluteFillObject}
       />
       <BlurView style={{ ...styles.box, position: "relative" }}>
@@ -222,96 +253,35 @@ export default function BarCodeScannerComponent() {
         />
 
         <View style={styles.controlBox}>
-          <TouchableOpacity>
+          <TouchableOpacity
+            onPress={cancelSaling}
+            disabled={scannedData.length === 0}
+          >
             <View style={styles.controlItem}>
-              <Text>Qarzdorlik</Text>
+              <Text>Bekor qilish</Text>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setOpen(true)}>
+          <TouchableOpacity
+            onPress={() =>
+              openModal("product_list", { add: handleBarCodeScanned })
+            }
+          >
             <View style={styles.controlItem}>
               <Text>Qo'lda kiritish</Text>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity onPress={finishScanning}>
+          <TouchableOpacity
+            onPress={finishScanning}
+            disabled={scannedData.length === 0}
+          >
             <View style={styles.controlItem}>
               <Text>Yakunlash</Text>
             </View>
           </TouchableOpacity>
         </View>
       </BlurView>
-      <ModalComponent open={open} setOpen={setOpen} />
+      <ModalComponent />
+      <DebtModalComponent />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    position: "relative",
-    flex: 1,
-    justifyContent: "center",
-    paddingTop: 300,
-  },
-  box: {
-    flex: 1,
-    padding: 10,
-  },
-  flex1: {
-    flex: 1,
-  },
-  item: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    fontSize: 16,
-    marginVertical: 5,
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 10,
-  },
-  text: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  activeProduct: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 10,
-    marginBottom: 5,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-  },
-  btnBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  btn: {
-    width: 60,
-    height: 60,
-    backgroundColor: "#f1f1f1",
-    borderRadius: 10,
-  },
-  icon: {
-    margin: "auto",
-  },
-  controlBox: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    height: 100,
-    width: width,
-    padding: 5,
-    gap: 5,
-    flexDirection: "row",
-    backgroundColor: "#fff",
-  },
-  controlItem: {
-    width: Math.floor(width / 3 - 13 / 3),
-    height: 100,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f1f1f1",
-    borderRadius: 5,
-  },
-});

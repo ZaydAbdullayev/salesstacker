@@ -39,4 +39,38 @@ export const products = [
     group: "consttovar",
     description: "120 varaq",
   },
+  {
+    code: "2000009882698",
+    name: "Kadigan Turkish style",
+    price: 399000,
+    unit: "ta",
+    group: "wear",
+    description: "Kuzgi, Kombu green",
+  },
+  {
+    code: "6938944302161",
+    name: "Ruchka",
+    price: 399000,
+    unit: "ta",
+    group: "consttovar",
+    description: "Ko'k geliviy",
+  },
 ];
+
+export const debtors = [
+  {
+    name: "Salim",
+    phone: "998901234567",
+    debt: 100000,
+  },
+  {
+    name: "Halim",
+    phone: "998901234567",
+    debt: 0,
+  },
+  {
+    name: "Karim",
+    phone: "998901234567",
+    debt: 12300,
+  },
+]
